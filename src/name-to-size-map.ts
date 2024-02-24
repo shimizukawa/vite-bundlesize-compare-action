@@ -1,64 +1,78 @@
-import {StatsCompilation} from 'webpack'
+import type {StatsAsset, StatsCompilation} from 'webpack'
 import type {Sizes} from './types'
 
+type StatsGroup = Record<string, any>;
+type Stat = [
+  label: string,
+  {
+    size: number,
+    gzipSize: number | null
+  }
+]
+
+function formatLabel(label: string) {
+  // labelから除去する: ?<query>
+  label = label.split("?")[0]
+
+  // mermaid関連の、ファイル名に含まれるハッシュ値を置換する
+  label = label.replace(/([^\/]+)-[\da-f]+\b/, '$1-<hash>');
+
+  return label;
+}
+
+// groups以下のstatsを列挙
+function collectStatsInGroup(group: StatsGroup): Stat[] {
+  // If a module doesn't have any submodules beneath it, then just return its own size
+  // Otherwise, break each module into its submodules with their own sizes
+  if (!group.groups) {
+    return [
+      [
+        formatLabel(group.label ?? ''),
+        {
+          size: group.statSize ?? 0,
+          gzipSize: null
+        },
+      ],
+    ];
+  } else {
+    return group.groups.flatMap(
+      (subgroup: StatsGroup) => collectStatsInGroup(subgroup)
+    ) ?? [];
+  }
+}
+
+function formatAssetName(label: string): string {
+  // ファイル名に含まれるbase64を置換する: .<base64>.min.js
+  const name = label.replace(/\.([\d\w_-]+)(\.min\.js)$/, '.<base64>$2');
+  return formatLabel(name);
+}
+
 export function assetNameToSizeMap(
-  statAssets: StatsCompilation['assets'] = []
+  statsAssets: StatsAsset[] = []
 ): Map<string, Sizes> {
   return new Map(
-    statAssets
-      // when Webpack's stats.excludeAssets is used, assets which are excluded will be grouped into an asset with type 'hidden assets'
-      .filter(it => !!it.name && it.type !== 'hidden assets')
+    statsAssets
       .map(asset => {
-        let gzipSize: number | null = null
-        if (asset.related && Array.isArray(asset.related)) {
-          const gzipAsset = asset.related.find(
-            related => related.type === 'gzipped'
-          )
-          if (gzipAsset) {
-            gzipSize = gzipAsset.size
-          }
-        }
-
         return [
-          asset.name,
+          formatAssetName(asset.label),
           {
-            size: asset.size,
-            gzipSize
+            size: asset.parsedSize,
+            gzipSize: asset.gzipSize,
           }
         ]
       })
-  )
+  );
 }
 
 export function chunkModuleNameToSizeMap(
-  statChunks: StatsCompilation['chunks'] = []
+  statsAssets: StatsAsset[] = []
 ): Map<string, Sizes> {
   return new Map(
-    statChunks.flatMap(chunk => {
-      if (!chunk.modules) return []
-      return chunk.modules.flatMap(module => {
-        // If a module doesn't have any submodules beneath it, then just return its own size
-        // Otherwise, break each module into its submodules with their own sizes
-        if (module.modules) {
-          return module.modules.map(submodule => [
-            submodule.name ?? '',
-            {
-              size: submodule.size ?? 0,
-              gzipSize: null
-            }
-          ])
-        } else {
-          return [
-            [
-              module.name ?? '',
-              {
-                size: module.size ?? 0,
-                gzipSize: null
-              }
-            ]
-          ]
-        }
+    statsAssets.flatMap(chunk => {
+      if (!chunk.stats) return []
+      return chunk.stats.flatMap((stat: StatsGroup) => {
+        return collectStatsInGroup(stat)
       })
     })
-  )
+  );
 }
