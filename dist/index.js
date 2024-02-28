@@ -82,10 +82,10 @@ exports.getChunkModuleDiff = void 0;
 const name_to_size_map_1 = __nccwpck_require__(5188);
 const webpack_stats_diff_1 = __nccwpck_require__(2572);
 function getChunkModuleDiff(oldStats, newStats) {
-    if (!oldStats.chunks || !newStats.chunks) {
+    if (!oldStats || !newStats) {
         return null;
     }
-    return (0, webpack_stats_diff_1.webpackStatsDiff)((0, name_to_size_map_1.chunkModuleNameToSizeMap)(oldStats.chunks), (0, name_to_size_map_1.chunkModuleNameToSizeMap)(newStats.chunks));
+    return (0, webpack_stats_diff_1.webpackStatsDiff)((0, name_to_size_map_1.chunkModuleNameToSizeMap)(oldStats), (0, name_to_size_map_1.chunkModuleNameToSizeMap)(newStats));
 }
 exports.getChunkModuleDiff = getChunkModuleDiff;
 
@@ -102,7 +102,7 @@ exports.getStatsDiff = void 0;
 const name_to_size_map_1 = __nccwpck_require__(5188);
 const webpack_stats_diff_1 = __nccwpck_require__(2572);
 function getStatsDiff(oldAssetStats, newAssetStats) {
-    return (0, webpack_stats_diff_1.webpackStatsDiff)((0, name_to_size_map_1.assetNameToSizeMap)(oldAssetStats.assets), (0, name_to_size_map_1.assetNameToSizeMap)(newAssetStats.assets));
+    return (0, webpack_stats_diff_1.webpackStatsDiff)((0, name_to_size_map_1.assetNameToSizeMap)(oldAssetStats), (0, name_to_size_map_1.assetNameToSizeMap)(newAssetStats));
 }
 exports.getStatsDiff = getStatsDiff;
 
@@ -233,59 +233,57 @@ run();
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.chunkModuleNameToSizeMap = exports.assetNameToSizeMap = void 0;
-function assetNameToSizeMap(statAssets = []) {
-    return new Map(statAssets
-        // when Webpack's stats.excludeAssets is used, assets which are excluded will be grouped into an asset with type 'hidden assets'
-        .filter(it => !!it.name && it.type !== 'hidden assets')
-        .map(asset => {
-        let gzipSize = null;
-        if (asset.related && Array.isArray(asset.related)) {
-            const gzipAsset = asset.related.find(related => related.type === 'gzipped');
-            if (gzipAsset) {
-                gzipSize = gzipAsset.size;
-            }
-        }
+function formatLabel(label) {
+    // labelから除去する: ?<query>
+    label = label.split("?")[0];
+    // mermaid関連の、ファイル名に含まれるハッシュ値を置換する
+    label = label.replace(/([^\/]+)-[\da-f]+\b/, '$1-<hash>');
+    return label;
+}
+// groups以下のstatsを列挙
+function collectStatsInGroup(group) {
+    var _a, _b, _c;
+    // If a module doesn't have any submodules beneath it, then just return its own size
+    // Otherwise, break each module into its submodules with their own sizes
+    if (!group.groups) {
         return [
-            asset.name,
+            [
+                formatLabel((_a = group.label) !== null && _a !== void 0 ? _a : ''),
+                {
+                    size: (_b = group.statSize) !== null && _b !== void 0 ? _b : 0,
+                    gzipSize: null
+                },
+            ],
+        ];
+    }
+    else {
+        return (_c = group.groups.flatMap((subgroup) => collectStatsInGroup(subgroup))) !== null && _c !== void 0 ? _c : [];
+    }
+}
+function formatAssetName(label) {
+    // ファイル名に含まれるbase64を置換する: .<base64>.min.js
+    const name = label.replace(/\.([\d\w_-]+)(\.min\.js)$/, '.<base64>$2');
+    return formatLabel(name);
+}
+function assetNameToSizeMap(statsAssets = []) {
+    return new Map(statsAssets
+        .map(asset => {
+        return [
+            formatAssetName(asset.label),
             {
-                size: asset.size,
-                gzipSize
+                size: asset.parsedSize,
+                gzipSize: asset.gzipSize,
             }
         ];
     }));
 }
 exports.assetNameToSizeMap = assetNameToSizeMap;
-function chunkModuleNameToSizeMap(statChunks = []) {
-    return new Map(statChunks.flatMap(chunk => {
-        if (!chunk.modules)
+function chunkModuleNameToSizeMap(statsAssets = []) {
+    return new Map(statsAssets.flatMap(chunk => {
+        if (!chunk.stats)
             return [];
-        return chunk.modules.flatMap(module => {
-            var _a, _b;
-            // If a module doesn't have any submodules beneath it, then just return its own size
-            // Otherwise, break each module into its submodules with their own sizes
-            if (module.modules) {
-                return module.modules.map(submodule => {
-                    var _a, _b;
-                    return [
-                        (_a = submodule.name) !== null && _a !== void 0 ? _a : '',
-                        {
-                            size: (_b = submodule.size) !== null && _b !== void 0 ? _b : 0,
-                            gzipSize: null
-                        }
-                    ];
-                });
-            }
-            else {
-                return [
-                    [
-                        (_a = module.name) !== null && _a !== void 0 ? _a : '',
-                        {
-                            size: (_b = module.size) !== null && _b !== void 0 ? _b : 0,
-                            gzipSize: null
-                        }
-                    ]
-                ];
-            }
+        return chunk.stats.flatMap((stat) => {
+            return collectStatsInGroup(stat);
         });
     }));
 }
@@ -347,7 +345,7 @@ function parseStatsFileToJson(statsFilePath) {
             if (error instanceof Error) {
                 core.warning(error);
             }
-            return { assets: [], chunks: undefined };
+            return [];
         }
     });
 }

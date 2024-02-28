@@ -1,31 +1,24 @@
-# Webpack bundlesize compare action
+# vite bundlesize compare action
 
-An action that compares 2 webpack compilation stats files, and comments on the PR with a description of the difference
+An action that compares 2 vite compilation stats files, and comments on the PR with a description of the difference
 
 ## How to use it
 
-In your application, ensure you output the stats.json, from `BundleAnalyzerPlugin'
+In your application, ensure you output the stats.json, from `vite-bundle-analyzer'
 
 ```js
-// webpack.config.js
-const {BundleAnalyzerPlugin} = require('webpack-bundle-analyzer')
+// nuxt.config.ts
+import { analyzer } from "vite-bundle-analyzer";
 
-// optionally you can also output compressed/gzipped stats. Requires a version >=1.1.0
-const CompressionPlugin = require('compression-webpack-plugin')
-
-module.exports = {
-  plugins: [
-    ...plugins,
-    // not required
-    new CompressionPlugin(),
-
-    // required
-    new BundleAnalyzerPlugin({
-      // generate the stats.json file
-      generateStatsFile: true
-    })
-  ]
-}
+export default defineNuxtConfig({
+  vite: {
+    plugins: [
+      analyzer({
+        analyzerMode: "json",
+      }),
+    ],
+  },
+});
 ```
 
 Then, in your action configuration, build both the head and the branch (in any way you see fit) and pass paths to the stats.json files as inputs ot this action
@@ -48,18 +41,18 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
         with:
           ref: ${{github.event.pull_request.head.ref}}
       - name: Install dependencies
         run: npm ci
-      - name: Build
-        run: npm run build
+      - name: Build head stats for analyze bundle size
+        run: npx nuxi build
       - name: Upload stats.json
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: head-stats
-          path: ./dist/stats.json
+          path: .nuxt/dist/client/stats.json
 
   # Build base for comparison and upload stats.json
   # You may replace this with your own build method. All that
@@ -70,18 +63,18 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
         with:
           ref: ${{ github.base_ref }}
       - name: Install dependencies
         run: npm ci
-      - name: Build
-        run: npm run build
+      - name: Build head stats for analyze bundle size
+        run: npx nuxi build
       - name: Upload stats.json
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: base-stats
-          path: ./dist/stats.json
+          path: .nuxt/dist/client/stats.json
 
   # run the action against the stats.json files
   compare:
@@ -91,8 +84,8 @@ jobs:
     permissions:
       pull-requests: write
     steps:
-      - uses: actions/download-artifact@v3
-      - uses: github/webpack-bundlesize-compare-action@v1.8.2
+      - uses: actions/download-artifact@v4
+      - uses: shimizukawa/webpack-bundlesize-compare-action@main
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           current-stats-json-path: ./head-stats/stats.json
