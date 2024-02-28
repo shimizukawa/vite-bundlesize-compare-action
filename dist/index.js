@@ -235,9 +235,9 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.chunkModuleNameToSizeMap = exports.assetNameToSizeMap = void 0;
 function formatLabel(label) {
     // labelから除去する: ?<query>
-    label = label.split("?")[0];
+    label = label.split('?')[0];
     // mermaid関連の、ファイル名に含まれるハッシュ値を置換する
-    label = label.replace(/([^\/]+)-[\da-f]+\b/, '$1-<hash>');
+    label = label.replace(/([^/]+)-[\da-f]+\b/, '$1-[hash]');
     return label;
 }
 // groups以下のstatsを列挙
@@ -252,27 +252,26 @@ function collectStatsInGroup(group) {
                 {
                     size: (_b = group.statSize) !== null && _b !== void 0 ? _b : 0,
                     gzipSize: null
-                },
-            ],
+                }
+            ]
         ];
     }
     else {
-        return (_c = group.groups.flatMap((subgroup) => collectStatsInGroup(subgroup))) !== null && _c !== void 0 ? _c : [];
+        return ((_c = group.groups.flatMap((subgroup) => collectStatsInGroup(subgroup))) !== null && _c !== void 0 ? _c : []);
     }
 }
 function formatAssetName(label) {
-    // ファイル名に含まれるbase64を置換する: .<base64>.min.js
-    const name = label.replace(/\.([\d\w_-]+)(\.min\.js)$/, '.<base64>$2');
+    // ファイル名に含まれるbase64を置換する: .[base64].min.js
+    const name = label.replace(/\.([\d\w_-]+)(\.min\.js)$/, '.[base64]$2');
     return formatLabel(name);
 }
 function assetNameToSizeMap(statsAssets = []) {
-    return new Map(statsAssets
-        .map(asset => {
+    return new Map(statsAssets.map(asset => {
         return [
             formatAssetName(asset.label),
             {
                 size: asset.parsedSize,
-                gzipSize: asset.gzipSize,
+                gzipSize: asset.gzipSize
             }
         ];
     }));
