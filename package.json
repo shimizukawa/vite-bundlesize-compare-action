@@ -1,5 +1,5 @@
 {
-  "name": "@shimizukawa/webpack-bundlesize-compare-action",
+  "name": "@shimizukawa/vite-bundlesize-compare-action",
   "version": "0.0.0",
   "private": true,
   "description": "GitHub action to compare the size of two vite bundles from their stats.json output files",

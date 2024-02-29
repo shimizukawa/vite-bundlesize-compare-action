@@ -85,7 +85,7 @@ jobs:
       pull-requests: write
     steps:
       - uses: actions/download-artifact@v4
-      - uses: shimizukawa/webpack-bundlesize-compare-action@main
+      - uses: shimizukawa/vite-bundlesize-compare-action@main
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           current-stats-json-path: ./head-stats/stats.json
